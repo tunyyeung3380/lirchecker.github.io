@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flight Load Planning</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f8f8f8;
+            color: #333;
+        }
+        h1, h2 {
+            text-align: center;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        label {
+            font-weight: bold;
+        }
+        input[type="number"],
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 1em;
+        }
+        button {
+            padding: 10px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 1em;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #218838;
+        }
+        .report {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: white;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 1.5em;
+            }
+            input[type="number"],
+            input[type="text"] {
+                font-size: 0.9em;
+            }
+            button {
+                font-size: 0.9em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Flight Load Planning</h1>
+    
+    <div class="container">
+        <!-- Section for Passenger Info -->
+        <h2>1. Passenger Info</h2>
+        <label for="male">Male:</label>
+        <input type="number" id="male" value="0" min="0">
+        
+        <label for="female">Female:</label>
+        <input type="number" id="female" value="0" min="0">
+        
+        <label for="child">Child:</label>
+        <input type="number" id="child" value="0" min="0">
+        
+        <label for="infant">Infant:</label>
+        <input type="number" id="infant" value="0" min="0">
+
+        <!-- Section for Zone Counts -->
+        <h2>2. Zone Counts</h2>
+        <label for="zoneA">Zone A:</label>
+        <input type="number" id="zoneA" value="0" min="0">
+
+        <label for="zoneB">Zone B:</label>
+        <input type="number" id="zoneB" value="0" min="0">
+
+        <label for="zoneC">Zone C:</label>
+        <input type="number" id="zoneC" value="0" min="0">
+
+        <!-- Section for Baggage Info -->
+        <h2>3. Baggage Info</h2>
+        <label for="baggageCount">Number of Baggages:</label>
+        <input type="number" id="baggageCount" value="0" min="0">
+
+        <label for="baggageWeight">Baggage Weight (kg):</label>
+        <input type="number" id="baggageWeight" value="0" min="0">
+
+        <!-- Section for Cargo Info -->
+        <h2>4. Cargo Info</h2>
+        <label for="uldNumber">ULD Number:</label>
+        <input type="text" id="uldNumber">
+        
+        <label for="cargoPieces">Cargo Pieces:</label>
+        <input type="number" id="cargoPieces" value="0" min="0">
+
+        <label for="cargoWeight">Cargo Weight (kg):</label>
+        <input type="number" id="cargoWeight" value="0" min="0">
+
+        <!-- Section for Load Planning -->
+        <h2>5. Load Planning</h2>
+        <h3>Hold Loading</h3>
+        <label for="hold1">Hold 1:</label>
+        <input type="number" id="hold1" value="0" min="0">
+
+        <label for="hold2">Hold 2:</label>
+        <input type="number" id="hold2" value="0" min="0">
+
+        <label for="hold3">Hold 3:</label>
+        <input type="number" id="hold3" value="0" min="0">
+
+        <label for="hold4">Hold 4:</label>
+        <input type="number" id="hold4" value="0" min="0">
+
+        <label for="hold5">Hold 5:</label>
+        <input type="number" id="hold5" value="0" min="0">
+    </div>
+
+    <button onclick="generateReport()">Generate Load Report</button>
+
+    <!-- Load Report Display -->
+    <div class="report" id="loadReport"></div>
+
+    <script>
+        function generateReport() {
+            const male = parseInt(document.getElementById('male').value) || 0;
+            const female = parseInt(document.getElementById('female').value) || 0;
+            const child = parseInt(document.getElementById('child').value) || 0;
+            const infant = parseInt(document.getElementById('infant').value) || 0;
+
+            const baggageCount = parseInt(document.getElementById('baggageCount').value) || 0;
+            const baggageWeight = parseInt(document.getElementById('baggageWeight').value) || 0;
+
+            const cargoPieces = parseInt(document.getElementById('cargoPieces').value) || 0;
+            const cargoWeight = parseInt(document.getElementById('cargoWeight').value) || 0;
+
+            const hold1 = parseInt(document.getElementById('hold1').value) || 0;
+            const hold2 = parseInt(document.getElementById('hold2').value) || 0;
+            const hold3 = parseInt(document.getElementById('hold3').value) || 0;
+            const hold4 = parseInt(document.getElementById('hold4').value) || 0;
+            const hold5 = parseInt(document.getElementById('hold5').value) || 0;
+
+            const totalPassengers = male + female + child + infant;
+
+            const loadReport = `
+                <h2>Load Report</h2>
+                <p><strong>Total Passengers:</strong> ${totalPassengers}</p>
+                <p><strong>Baggage Count:</strong> ${baggageCount} (Weight: ${baggageWeight} kg)</p>
+                <p><strong>Cargo:</strong> ${cargoPieces} pieces (Weight: ${cargoWeight} kg)</p>
+                <h3>Hold Load Distribution</h3>
+                <p>Hold 1: ${hold1} bags</p>
+                <p>Hold 2: ${hold2} bags</p>
+                <p>Hold 3: ${hold3} bags</p>
+                <p>Hold 4: ${hold4} bags</p>
+                <p>Hold 5: ${hold5} bags</p>
+            `;
+
+            document.getElementById('loadReport').innerHTML = loadReport;
+        }
+    </script>
+</body>
+</html>
