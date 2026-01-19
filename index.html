@@ -2,67 +2,25 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Cargo & Baggage Load Planner</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cargo Load Planner</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 10px; }
-    textarea, input, select, button {
-      width: 100%; 
-      max-width: 100%;
-      margin: 8px 0;
-      padding: 12px;
-      font-size: 16px;
-    }
-    button {
-      background-color: #0078d7;
-      color: white;
-      border: none;
-      border-radius: 6px;
-    }
-    button:active { background-color: #005a9e; }
-
-    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-    th, td { border: 1px solid #ccc; padding: 8px; font-size: 14px; }
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    textarea { width: 100%; height: 150px; }
+    button { margin: 10px 5px; padding: 8px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+    th, td { border: 1px solid #ccc; padding: 6px; text-align: center; }
     th { background-color: #f2f2f2; }
-
-    /* Responsive table → card layout */
-    @media (max-width: 600px) {
-      table, thead, tbody, th, td, tr { display: block; }
-      thead tr { display: none; }
-      tr { margin-bottom: 15px; border: 1px solid #ddd; border-radius: 6px; padding: 10px; }
-      td { border: none; display: flex; justify-content: space-between; }
-      td::before {
-        content: attr(data-label);
-        font-weight: bold;
-      }
-    }
-
-    /* Sticky footer buttons */
-    .footer-actions {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: #fff;
-      padding: 10px;
-      border-top: 1px solid #ccc;
-      display: flex;
-      gap: 10px;
-    }
-    .footer-actions button { flex: 1; }
-    #report { margin-bottom: 80px; } /* space for sticky footer */
+    #report { margin-top: 30px; }
   </style>
 </head>
 <body>
-  <h2>Cargo & Baggage Load Planner</h2>
+  <h2>Cargo Manifest Parser & Load Planner</h2>
   <p>Paste your email title and cargo manifest below:</p>
-  <textarea id="manifestInput"></textarea>
+  <textarea id="manifestInput"></textarea><br>
+  <button onclick="parseManifest()">Parse Manifest</button>
+  <button onclick="generateReport()">Submit & Generate Load Report</button>
 
-  <h3>Baggage Input</h3>
-  <label>PCS: <input type="number" id="bagPCS"></label>
-  <label>Weight (KG): <input type="number" id="bagWT"></label>
-  <button onclick="addBaggage()">Add Baggage</button>
-  <p id="avgBag"></p>
+  <div id="headerInfo"></div>
 
   <table id="cargoTable">
     <thead>
@@ -84,170 +42,141 @@
 
   <div id="report"></div>
 
-  <div class="footer-actions">
-    <button onclick="parseManifest()">Parse Manifest</button>
-    <button onclick="generateReport()">Generate Report</button>
-  </div>
+  <script>
+    let cargoData = [];
+    let headerInfo = {};
 
-<script>
-let cargoData = [];
-let headerInfo = {};
+    function parseManifest() {
+      const text = document.getElementById('manifestInput').value.trim();
+      const lines = text.split(/\n/).filter(l => l.trim() !== "");
 
-function parseManifest() {
-  const text = document.getElementById('manifestInput').value.trim();
-  const lines = text.split(/\n/).filter(l => l.trim() !== "");
+      cargoData = [];
+      headerInfo = {};
 
-  cargoData = [];
-  headerInfo = {};
+      // First line may be the email title
+      if (lines[0].startsWith("FINAL LOAD")) {
+        const headerParts = lines[0].split(/\s+/);
+        // Format: FINAL LOAD UO114/16JAN26/HKGTPE
+        if (headerParts.length >= 3) {
+          const flightInfo = headerParts[2].split("/");
+          headerInfo.flightNo = flightInfo[0];
+          headerInfo.date = flightInfo[1];
+          headerInfo.sector = flightInfo[2];
+        }
+        lines.shift(); // remove header line from cargo parsing
+      }
 
-  // First line may be the email title
-  if (lines[0].startsWith("FINAL LOAD")) {
-    const headerParts = lines[0].split(/\s+/);
-    if (headerParts.length >= 3) {
-      const flightInfo = headerParts[2].split("/");
-      headerInfo.flightNo = flightInfo[0];
-      headerInfo.date = flightInfo[1];
-      headerInfo.sector = flightInfo[2];
+      lines.forEach(line => {
+        const parts = line.trim().split(/\s+/);
+
+        // Skip DEST if present
+        let startIndex = 0;
+        if (!/^[A-Z]{2,3}\d/.test(parts[0])) {
+          startIndex = 1;
+        }
+
+        const unit = parts[startIndex];
+        const pcs = parseInt(parts[startIndex + 2]) || 0;
+        const wt = parseInt(parts[startIndex + 3]) || 0;
+
+        // Skip headers, TTL, and malformed/zero rows
+        if (!unit || unit === "TTL" || pcs === 0 || wt === 0) return;
+
+        cargoData.push({
+          UNIT: unit,
+          TYPE: parts[startIndex + 1] || "",
+          PCS: pcs,
+          WT: wt,
+          CTUR: parts[startIndex + 4] || "",
+          PR: parts[startIndex + 5] || "",
+          HANDLING: (parts[startIndex + 6] && parts[startIndex + 6].includes("ELI")) ? "ELI" : "NONE",
+          REMARKS: parts.slice(startIndex + 7).join(" "),
+          COMP: "H1" // default compartment
+        });
+      });
+
+      renderHeader();
+      renderTable();
+      updateTotals();
     }
-    lines.shift();
-  }
 
-  lines.forEach(line => {
-    const parts = line.trim().split(/\s+/);
-    let startIndex = 0;
-    if (!/^[A-Z]{2,3}\d/.test(parts[0])) {
-      startIndex = 1;
+    function renderHeader() {
+      if (headerInfo.flightNo) {
+        document.getElementById("headerInfo").innerHTML =
+          `<h3>Flight Information</h3>
+           <p><b>Flight No:</b> ${headerInfo.flightNo}</p>
+           <p><b>Date:</b> ${headerInfo.date}</p>
+           <p><b>Sector:</b> ${headerInfo.sector}</p>`;
+      }
     }
 
-    const unit = parts[startIndex];
-    const type = parts[startIndex + 1] || "";
-    const pcs = parseInt(parts[startIndex + 2]) || 0;
-    const wt = parseInt(parts[startIndex + 3]) || 0;
+    function renderTable() {
+      const tbody = document.querySelector("#cargoTable tbody");
+      tbody.innerHTML = "";
 
-    if (!unit || unit === "TTL" || pcs === 0 || wt === 0) return;
-
-    let handling = parts[startIndex + 6] || "";
-    let typeLabel = type;
-    if (handling.includes("ELI")) {
-      typeLabel = `${type}-ELI`;
+      cargoData.forEach((row, idx) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${row.UNIT}</td><td>${row.TYPE}</td><td>${row.PCS}</td>
+                        <td>${row.WT}</td><td>${row.CTUR}</td><td>${row.PR}</td>
+                        <td>${row.HANDLING}</td><td>${row.REMARKS}</td>
+                        <td>
+                          <select onchange="setCompartment(${idx}, this.value)">
+                            <option value="H1">H1</option>
+                            <option value="H2">H2</option>
+                            <option value="H3">H3</option>
+                            <option value="H4">H4</option>
+                            <option value="H5">H5</option>
+                            <option value="OFFLOAD">Offload</option>
+                          </select>
+                        </td>`;
+        tbody.appendChild(tr);
+      });
     }
 
-    cargoData.push({
-      UNIT: unit,
-      TYPE: typeLabel,
-      PCS: pcs,
-      WT: wt,
-      CTUR: parts[startIndex + 4] || "",
-      PR: parts[startIndex + 5] || "",
-      HANDLING: handling,
-      REMARKS: parts.slice(startIndex + 7).join(" "),
-      COMP: "H1"
-    });
-  });
+    function setCompartment(index, value) {
+      cargoData[index].COMP = value;
+    }
 
-  renderTable();
-  updateTotals();
-}
-
-function addBaggage() {
-  const pcs = parseInt(document.getElementById("bagPCS").value) || 0;
-  const wt = parseInt(document.getElementById("bagWT").value) || 0;
-  if (pcs <= 0 || wt <= 0) return;
-
-  const avg = (wt / pcs).toFixed(2);
-  document.getElementById("avgBag").textContent = `Average baggage weight: ${avg} kg per piece`;
-
-  cargoData.push({
-    UNIT: "BAGGAGE",
-    TYPE: "B",
-    PCS: pcs,
-    WT: wt,
-    CTUR: "",
-    PR: "",
-    HANDLING: "",
-    REMARKS: "",
-    COMP: "H1"
-  });
-
-  renderTable();
-  updateTotals();
-}
-
-function renderTable() {
-  const tbody = document.querySelector("#cargoTable tbody");
-  tbody.innerHTML = "";
-
-  cargoData.forEach((row, idx) => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td data-label="UNIT">${row.UNIT}</td>
-      <td data-label="TYPE">${row.TYPE}</td>
-      <td data-label="PCS">${row.PCS}</td>
-      <td data-label="WT/KG">${row.WT}</td>
-      <td data-label="CTUR">${row.CTUR}</td>
-      <td data-label="PR">${row.PR}</td>
-      <td data-label="HANDLING">${row.HANDLING}</td>
-      <td data-label="REMARKS">${row.REMARKS}</td>
-      <td data-label="Compartment">
-        <select onchange="setCompartment(${idx}, this.value)">
-          <option value="H1">H1</option>
-          <option value="H2">H2</option>
-          <option value="H3">H3</option>
-          <option value="H4">H4</option>
-          <option value="H5">H5</option>
-          <option value="OFFLOAD">Offload</option>
-        </select>
-      </td>`;
-    tbody.appendChild(tr);
-  });
-}
-
-function setCompartment(index, value) {
-  cargoData[index].COMP = value;
-}
-
-function updateTotals() {
-  const totalPCS = cargoData.reduce((sum, r) => sum + r.PCS, 0);
-  const totalWT = cargoData.reduce((sum, r) => sum + r.WT, 0);
-  document.getElementById("totalPCS").textContent = totalPCS;
-  document.getElementById("totalWT").textContent = totalWT;
-}
-
-function generateReport() {
-  const reportDiv = document.getElementById("report");
-  let compartments = {
-    H1:{pcs:0,wt:0,types:new Set()}, H2:{pcs:0,wt:0,types:new Set()},
-    H3:{pcs:0,wt:0,types:new Set()}, H4:{pcs:0,wt:0,types:new Set()},
-    H5:{pcs:0,wt:0,types:new Set()}
-  };
-  let offload = {pcs:0, wt:0};
-
-  cargoData.for
+    function updateTotals() {
+      const totalPCS = cargoData.reduce((sum, r) => sum + r.PCS, 0);
+      const totalWT = cargoData.reduce((sum, r) => sum + r.WT, 0);
+      document.getElementById("totalPCS").textContent = totalPCS;
+      document.getElementById("totalWT").textContent = totalWT;
+    }
 
     function generateReport() {
-      const reportDiv = document.getElementById("report");
-      let compartments = {H1:{pcs:0,wt:0,types:new Set()}, H2:{pcs:0,wt:0,types:new Set()}, H3:{pcs:0,wt:0,types:new Set()}, H4:{pcs:0,wt:0,types:new Set()}, H5:{pcs:0,wt:0,types:new Set()}};
-      let offload = {pcs:0, wt:0};
+  const reportDiv = document.getElementById("report");
+  let compartments = {H1:{pcs:0,wt:0}, H2:{pcs:0,wt:0}, H3:{pcs:0,wt:0}, H4:{pcs:0,wt:0}, H5:{pcs:0,wt:0}};
+  let offload = {pcs:0, wt:0};
+  
+  cargoData.forEach(r => {
+    if (r.COMP === "OFFLOAD") {
+      offload.pcs += r.PCS;
+      offload.wt += r.WT;
+    } else {
+      compartments[r.COMP].pcs += r.PCS;
+      compartments[r.COMP].wt += r.WT;
+    }
+  });
 
-      cargoData.forEach(r => {
-        if (r.COMP === "OFFLOAD") {
-          offload.pcs += r.PCS;
-          offload.wt += r.WT;
-        } else {
-          compartments[r.COMP].pcs += r.PCS;
-          compartments[r.COMP].wt += r.WT;
-          compartments[r.COMP].types.add(r.TYPE);
-        }
-      });
+  // Calculate loaded totals (only H1–H5)
+  const loadedPCS = Object.values(compartments).reduce((sum, c) => sum + c.pcs, 0);
+  const loadedWT  = Object.values(compartments).reduce((sum, c) => sum + c.wt, 0);
 
-      let html = "<h3>Load Report</h3><table><tr><th>Compartment</th><th>PCS</th><th>Weight (KG)</th><th>Type</th></tr>";
-      Object.keys(compartments).forEach(c => {
-        let typeLabel = "";
-        const types = Array.from(compartments[c].types);
-        if (types.length > 1) {
-          typeLabel = types.join("/");
-        } else {
-          typeLabel = types[0] || "";
-        }
-        html += `<tr><td>${c}</td><td>${compartments[c].pcs}</td><td>${compartments[c].wt}</td><td>${typeLabel}</td></tr>`;
-      });
+  // Build load report
+  let html = "<h3>Load Report</h3><table><tr><th>Compartment</th><th>PCS</th><th>Weight (KG)</th></tr>";
+  Object.keys(compartments).forEach(c => {
+    html += `<tr><td>${c}</td><td>${compartments[c].pcs}</td><td>${compartments[c].wt}</td></tr>`;
+  });
+  html += `<tr><th>Total Loaded</th><th>${loadedPCS}</th><th>${loadedWT}</th></tr></table>`;
+
+  // Separate offload report
+  html += "<h3>Offload Report</h3><table><tr><th>PCS</th><th>Weight (KG)</th></tr>";
+  html += `<tr><td>${offload.pcs}</td><td>${offload.wt}</td></tr></table>`;
+
+  reportDiv.innerHTML = html;
+}
+
+  </script>
+</body>
+</html>
