@@ -1,177 +1,194 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Flight Load Planning</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f8f8f8;
-            color: #333;
-        }
-        h1, h2 {
-            text-align: center;
-        }
-        .container {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-        label {
-            font-weight: bold;
-        }
-        input[type="number"],
-        input[type="text"] {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            font-size: 1em;
-        }
-        button {
-            padding: 10px;
-            background-color: #28a745;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            font-size: 1em;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #218838;
-        }
-        .report {
-            margin-top: 20px;
-            padding: 10px;
-            background-color: white;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-        }
-        @media (max-width: 600px) {
-            h1 {
-                font-size: 1.5em;
-            }
-            input[type="number"],
-            input[type="text"] {
-                font-size: 0.9em;
-            }
-            button {
-                font-size: 0.9em;
-            }
-        }
-    </style>
+  <meta charset="UTF-8">
+  <title>Cargo & Baggage Load Planner</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    textarea, input { margin: 5px; padding: 6px; }
+    button { margin: 10px 5px; padding: 8px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+    th, td { border: 1px solid #ccc; padding: 6px; text-align: center; }
+    th { background-color: #f2f2f2; }
+    #report { margin-top: 30px; }
+  </style>
 </head>
 <body>
-    <h1>Flight Load Planning</h1>
-    
-    <div class="container">
-        <!-- Section for Passenger Info -->
-        <h2>1. Passenger Info</h2>
-        <label for="male">Male:</label>
-        <input type="number" id="male" value="0" min="0">
-        
-        <label for="female">Female:</label>
-        <input type="number" id="female" value="0" min="0">
-        
-        <label for="child">Child:</label>
-        <input type="number" id="child" value="0" min="0">
-        
-        <label for="infant">Infant:</label>
-        <input type="number" id="infant" value="0" min="0">
+  <h2>Cargo & Baggage Load Planner</h2>
+  <p>Paste your email title and cargo manifest below:</p>
+  <textarea id="manifestInput"></textarea><br>
+  <button onclick="parseManifest()">Parse Manifest</button>
 
-        <!-- Section for Zone Counts -->
-        <h2>2. Zone Counts</h2>
-        <label for="zoneA">Zone A:</label>
-        <input type="number" id="zoneA" value="0" min="0">
+  <h3>Baggage Input</h3>
+  <label>PCS: <input type="number" id="bagPCS"></label>
+  <label>Weight (KG): <input type="number" id="bagWT"></label>
+  <button onclick="addBaggage()">Add Baggage</button>
+  <p id="avgBag"></p>
 
-        <label for="zoneB">Zone B:</label>
-        <input type="number" id="zoneB" value="0" min="0">
+  <button onclick="generateReport()">Submit & Generate Load Report</button>
 
-        <label for="zoneC">Zone C:</label>
-        <input type="number" id="zoneC" value="0" min="0">
+  <table id="cargoTable">
+    <thead>
+      <tr>
+        <th>UNIT</th><th>TYPE</th><th>PCS</th><th>WT/KG</th>
+        <th>CTUR</th><th>PR</th><th>SPECIAL HANDLING</th><th>REMARKS</th><th>Compartment</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+    <tfoot>
+      <tr>
+        <th colspan="2">TOTAL</th>
+        <th id="totalPCS">0</th>
+        <th id="totalWT">0</th>
+        <th colspan="5"></th>
+      </tr>
+    </tfoot>
+  </table>
 
-        <!-- Section for Baggage Info -->
-        <h2>3. Baggage Info</h2>
-        <label for="baggageCount">Number of Baggages:</label>
-        <input type="number" id="baggageCount" value="0" min="0">
+  <div id="report"></div>
 
-        <label for="baggageWeight">Baggage Weight (kg):</label>
-        <input type="number" id="baggageWeight" value="0" min="0">
+  <script>
+    let cargoData = [];
+    let headerInfo = {};
 
-        <!-- Section for Cargo Info -->
-        <h2>4. Cargo Info</h2>
-        <label for="uldNumber">ULD Number:</label>
-        <input type="text" id="uldNumber">
-        
-        <label for="cargoPieces">Cargo Pieces:</label>
-        <input type="number" id="cargoPieces" value="0" min="0">
+    function parseManifest() {
+      const text = document.getElementById('manifestInput').value.trim();
+      const lines = text.split(/\n/).filter(l => l.trim() !== "");
 
-        <label for="cargoWeight">Cargo Weight (kg):</label>
-        <input type="number" id="cargoWeight" value="0" min="0">
+      cargoData = [];
+      headerInfo = {};
 
-        <!-- Section for Load Planning -->
-        <h2>5. Load Planning</h2>
-        <h3>Hold Loading</h3>
-        <label for="hold1">Hold 1:</label>
-        <input type="number" id="hold1" value="0" min="0">
-
-        <label for="hold2">Hold 2:</label>
-        <input type="number" id="hold2" value="0" min="0">
-
-        <label for="hold3">Hold 3:</label>
-        <input type="number" id="hold3" value="0" min="0">
-
-        <label for="hold4">Hold 4:</label>
-        <input type="number" id="hold4" value="0" min="0">
-
-        <label for="hold5">Hold 5:</label>
-        <input type="number" id="hold5" value="0" min="0">
-    </div>
-
-    <button onclick="generateReport()">Generate Load Report</button>
-
-    <!-- Load Report Display -->
-    <div class="report" id="loadReport"></div>
-
-    <script>
-        function generateReport() {
-            const male = parseInt(document.getElementById('male').value) || 0;
-            const female = parseInt(document.getElementById('female').value) || 0;
-            const child = parseInt(document.getElementById('child').value) || 0;
-            const infant = parseInt(document.getElementById('infant').value) || 0;
-
-            const baggageCount = parseInt(document.getElementById('baggageCount').value) || 0;
-            const baggageWeight = parseInt(document.getElementById('baggageWeight').value) || 0;
-
-            const cargoPieces = parseInt(document.getElementById('cargoPieces').value) || 0;
-            const cargoWeight = parseInt(document.getElementById('cargoWeight').value) || 0;
-
-            const hold1 = parseInt(document.getElementById('hold1').value) || 0;
-            const hold2 = parseInt(document.getElementById('hold2').value) || 0;
-            const hold3 = parseInt(document.getElementById('hold3').value) || 0;
-            const hold4 = parseInt(document.getElementById('hold4').value) || 0;
-            const hold5 = parseInt(document.getElementById('hold5').value) || 0;
-
-            const totalPassengers = male + female + child + infant;
-
-            const loadReport = `
-                <h2>Load Report</h2>
-                <p><strong>Total Passengers:</strong> ${totalPassengers}</p>
-                <p><strong>Baggage Count:</strong> ${baggageCount} (Weight: ${baggageWeight} kg)</p>
-                <p><strong>Cargo:</strong> ${cargoPieces} pieces (Weight: ${cargoWeight} kg)</p>
-                <h3>Hold Load Distribution</h3>
-                <p>Hold 1: ${hold1} bags</p>
-                <p>Hold 2: ${hold2} bags</p>
-                <p>Hold 3: ${hold3} bags</p>
-                <p>Hold 4: ${hold4} bags</p>
-                <p>Hold 5: ${hold5} bags</p>
-            `;
-
-            document.getElementById('loadReport').innerHTML = loadReport;
+      // First line may be the email title
+      if (lines[0].startsWith("FINAL LOAD")) {
+        const headerParts = lines[0].split(/\s+/);
+        if (headerParts.length >= 3) {
+          const flightInfo = headerParts[2].split("/");
+          headerInfo.flightNo = flightInfo[0];
+          headerInfo.date = flightInfo[1];
+          headerInfo.sector = flightInfo[2];
         }
-    </script>
-</body>
-</html>
+        lines.shift();
+      }
+
+      lines.forEach(line => {
+        const parts = line.trim().split(/\s+/);
+        let startIndex = 0;
+        if (!/^[A-Z]{2,3}\d/.test(parts[0])) {
+          startIndex = 1;
+        }
+
+        const unit = parts[startIndex];
+        const type = parts[startIndex + 1] || "";
+        const pcs = parseInt(parts[startIndex + 2]) || 0;
+        const wt = parseInt(parts[startIndex + 3]) || 0;
+
+        if (!unit || unit === "TTL" || pcs === 0 || wt === 0) return;
+
+        let handling = parts[startIndex + 6] || "";
+        let typeLabel = type;
+        if (handling.includes("ELI")) {
+          typeLabel = `${type}-ELI`;
+        }
+
+        cargoData.push({
+          UNIT: unit,
+          TYPE: typeLabel,
+          PCS: pcs,
+          WT: wt,
+          CTUR: parts[startIndex + 4] || "",
+          PR: parts[startIndex + 5] || "",
+          HANDLING: handling,
+          REMARKS: parts.slice(startIndex + 7).join(" "),
+          COMP: "H1"
+        });
+      });
+
+      renderTable();
+      updateTotals();
+    }
+
+    function addBaggage() {
+      const pcs = parseInt(document.getElementById("bagPCS").value) || 0;
+      const wt = parseInt(document.getElementById("bagWT").value) || 0;
+      if (pcs <= 0 || wt <= 0) return;
+
+      const avg = (wt / pcs).toFixed(2);
+      document.getElementById("avgBag").textContent = `Average baggage weight: ${avg} kg per piece`;
+
+      cargoData.push({
+        UNIT: "BAGGAGE",
+        TYPE: "B",
+        PCS: pcs,
+        WT: wt,
+        CTUR: "",
+        PR: "",
+        HANDLING: "",
+        REMARKS: "",
+        COMP: "H1"
+      });
+
+      renderTable();
+      updateTotals();
+    }
+
+    function renderTable() {
+      const tbody = document.querySelector("#cargoTable tbody");
+      tbody.innerHTML = "";
+
+      cargoData.forEach((row, idx) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${row.UNIT}</td><td>${row.TYPE}</td><td>${row.PCS}</td>
+                        <td>${row.WT}</td><td>${row.CTUR}</td><td>${row.PR}</td>
+                        <td>${row.HANDLING}</td><td>${row.REMARKS}</td>
+                        <td>
+                          <select onchange="setCompartment(${idx}, this.value)">
+                            <option value="H1">H1</option>
+                            <option value="H2">H2</option>
+                            <option value="H3">H3</option>
+                            <option value="H4">H4</option>
+                            <option value="H5">H5</option>
+                            <option value="OFFLOAD">Offload</option>
+                          </select>
+                        </td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function setCompartment(index, value) {
+      cargoData[index].COMP = value;
+    }
+
+    function updateTotals() {
+      const totalPCS = cargoData.reduce((sum, r) => sum + r.PCS, 0);
+      const totalWT = cargoData.reduce((sum, r) => sum + r.WT, 0);
+      document.getElementById("totalPCS").textContent = totalPCS;
+      document.getElementById("totalWT").textContent = totalWT;
+    }
+
+    function generateReport() {
+      const reportDiv = document.getElementById("report");
+      let compartments = {H1:{pcs:0,wt:0,types:new Set()}, H2:{pcs:0,wt:0,types:new Set()}, H3:{pcs:0,wt:0,types:new Set()}, H4:{pcs:0,wt:0,types:new Set()}, H5:{pcs:0,wt:0,types:new Set()}};
+      let offload = {pcs:0, wt:0};
+
+      cargoData.forEach(r => {
+        if (r.COMP === "OFFLOAD") {
+          offload.pcs += r.PCS;
+          offload.wt += r.WT;
+        } else {
+          compartments[r.COMP].pcs += r.PCS;
+          compartments[r.COMP].wt += r.WT;
+          compartments[r.COMP].types.add(r.TYPE);
+        }
+      });
+
+      let html = "<h3>Load Report</h3><table><tr><th>Compartment</th><th>PCS</th><th>Weight (KG)</th><th>Type</th></tr>";
+      Object.keys(compartments).forEach(c => {
+        let typeLabel = "";
+        const types = Array.from(compartments[c].types);
+        if (types.length > 1) {
+          typeLabel = types.join("/");
+        } else {
+          typeLabel = types[0] || "";
+        }
+        html += `<tr><td>${c}</td><td>${compartments[c].pcs}</td><td>${compartments[c].wt}</td><td>${typeLabel}</td></tr>`;
+      });
