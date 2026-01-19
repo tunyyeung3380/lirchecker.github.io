@@ -3,29 +3,66 @@
 <head>
   <meta charset="UTF-8">
   <title>Cargo & Baggage Load Planner</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    textarea, input { margin: 5px; padding: 6px; }
-    button { margin: 10px 5px; padding: 8px; }
-    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
-    th, td { border: 1px solid #ccc; padding: 6px; text-align: center; }
+    body { font-family: Arial, sans-serif; margin: 10px; }
+    textarea, input, select, button {
+      width: 100%; 
+      max-width: 100%;
+      margin: 8px 0;
+      padding: 12px;
+      font-size: 16px;
+    }
+    button {
+      background-color: #0078d7;
+      color: white;
+      border: none;
+      border-radius: 6px;
+    }
+    button:active { background-color: #005a9e; }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+    th, td { border: 1px solid #ccc; padding: 8px; font-size: 14px; }
     th { background-color: #f2f2f2; }
-    #report { margin-top: 30px; }
+
+    /* Responsive table → card layout */
+    @media (max-width: 600px) {
+      table, thead, tbody, th, td, tr { display: block; }
+      thead tr { display: none; }
+      tr { margin-bottom: 15px; border: 1px solid #ddd; border-radius: 6px; padding: 10px; }
+      td { border: none; display: flex; justify-content: space-between; }
+      td::before {
+        content: attr(data-label);
+        font-weight: bold;
+      }
+    }
+
+    /* Sticky footer buttons */
+    .footer-actions {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #fff;
+      padding: 10px;
+      border-top: 1px solid #ccc;
+      display: flex;
+      gap: 10px;
+    }
+    .footer-actions button { flex: 1; }
+    #report { margin-bottom: 80px; } /* space for sticky footer */
   </style>
 </head>
 <body>
   <h2>Cargo & Baggage Load Planner</h2>
   <p>Paste your email title and cargo manifest below:</p>
-  <textarea id="manifestInput"></textarea><br>
-  <button onclick="parseManifest()">Parse Manifest</button>
+  <textarea id="manifestInput"></textarea>
 
   <h3>Baggage Input</h3>
   <label>PCS: <input type="number" id="bagPCS"></label>
   <label>Weight (KG): <input type="number" id="bagWT"></label>
   <button onclick="addBaggage()">Add Baggage</button>
   <p id="avgBag"></p>
-
-  <button onclick="generateReport()">Submit & Generate Load Report</button>
 
   <table id="cargoTable">
     <thead>
@@ -47,123 +84,145 @@
 
   <div id="report"></div>
 
-  <script>
-    let cargoData = [];
-    let headerInfo = {};
+  <div class="footer-actions">
+    <button onclick="parseManifest()">Parse Manifest</button>
+    <button onclick="generateReport()">Generate Report</button>
+  </div>
 
-    function parseManifest() {
-      const text = document.getElementById('manifestInput').value.trim();
-      const lines = text.split(/\n/).filter(l => l.trim() !== "");
+<script>
+let cargoData = [];
+let headerInfo = {};
 
-      cargoData = [];
-      headerInfo = {};
+function parseManifest() {
+  const text = document.getElementById('manifestInput').value.trim();
+  const lines = text.split(/\n/).filter(l => l.trim() !== "");
 
-      // First line may be the email title
-      if (lines[0].startsWith("FINAL LOAD")) {
-        const headerParts = lines[0].split(/\s+/);
-        if (headerParts.length >= 3) {
-          const flightInfo = headerParts[2].split("/");
-          headerInfo.flightNo = flightInfo[0];
-          headerInfo.date = flightInfo[1];
-          headerInfo.sector = flightInfo[2];
-        }
-        lines.shift();
-      }
+  cargoData = [];
+  headerInfo = {};
 
-      lines.forEach(line => {
-        const parts = line.trim().split(/\s+/);
-        let startIndex = 0;
-        if (!/^[A-Z]{2,3}\d/.test(parts[0])) {
-          startIndex = 1;
-        }
+  // First line may be the email title
+  if (lines[0].startsWith("FINAL LOAD")) {
+    const headerParts = lines[0].split(/\s+/);
+    if (headerParts.length >= 3) {
+      const flightInfo = headerParts[2].split("/");
+      headerInfo.flightNo = flightInfo[0];
+      headerInfo.date = flightInfo[1];
+      headerInfo.sector = flightInfo[2];
+    }
+    lines.shift();
+  }
 
-        const unit = parts[startIndex];
-        const type = parts[startIndex + 1] || "";
-        const pcs = parseInt(parts[startIndex + 2]) || 0;
-        const wt = parseInt(parts[startIndex + 3]) || 0;
-
-        if (!unit || unit === "TTL" || pcs === 0 || wt === 0) return;
-
-        let handling = parts[startIndex + 6] || "";
-        let typeLabel = type;
-        if (handling.includes("ELI")) {
-          typeLabel = `${type}-ELI`;
-        }
-
-        cargoData.push({
-          UNIT: unit,
-          TYPE: typeLabel,
-          PCS: pcs,
-          WT: wt,
-          CTUR: parts[startIndex + 4] || "",
-          PR: parts[startIndex + 5] || "",
-          HANDLING: handling,
-          REMARKS: parts.slice(startIndex + 7).join(" "),
-          COMP: "H1"
-        });
-      });
-
-      renderTable();
-      updateTotals();
+  lines.forEach(line => {
+    const parts = line.trim().split(/\s+/);
+    let startIndex = 0;
+    if (!/^[A-Z]{2,3}\d/.test(parts[0])) {
+      startIndex = 1;
     }
 
-    function addBaggage() {
-      const pcs = parseInt(document.getElementById("bagPCS").value) || 0;
-      const wt = parseInt(document.getElementById("bagWT").value) || 0;
-      if (pcs <= 0 || wt <= 0) return;
+    const unit = parts[startIndex];
+    const type = parts[startIndex + 1] || "";
+    const pcs = parseInt(parts[startIndex + 2]) || 0;
+    const wt = parseInt(parts[startIndex + 3]) || 0;
 
-      const avg = (wt / pcs).toFixed(2);
-      document.getElementById("avgBag").textContent = `Average baggage weight: ${avg} kg per piece`;
+    if (!unit || unit === "TTL" || pcs === 0 || wt === 0) return;
 
-      cargoData.push({
-        UNIT: "BAGGAGE",
-        TYPE: "B",
-        PCS: pcs,
-        WT: wt,
-        CTUR: "",
-        PR: "",
-        HANDLING: "",
-        REMARKS: "",
-        COMP: "H1"
-      });
-
-      renderTable();
-      updateTotals();
+    let handling = parts[startIndex + 6] || "";
+    let typeLabel = type;
+    if (handling.includes("ELI")) {
+      typeLabel = `${type}-ELI`;
     }
 
-    function renderTable() {
-      const tbody = document.querySelector("#cargoTable tbody");
-      tbody.innerHTML = "";
+    cargoData.push({
+      UNIT: unit,
+      TYPE: typeLabel,
+      PCS: pcs,
+      WT: wt,
+      CTUR: parts[startIndex + 4] || "",
+      PR: parts[startIndex + 5] || "",
+      HANDLING: handling,
+      REMARKS: parts.slice(startIndex + 7).join(" "),
+      COMP: "H1"
+    });
+  });
 
-      cargoData.forEach((row, idx) => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `<td>${row.UNIT}</td><td>${row.TYPE}</td><td>${row.PCS}</td>
-                        <td>${row.WT}</td><td>${row.CTUR}</td><td>${row.PR}</td>
-                        <td>${row.HANDLING}</td><td>${row.REMARKS}</td>
-                        <td>
-                          <select onchange="setCompartment(${idx}, this.value)">
-                            <option value="H1">H1</option>
-                            <option value="H2">H2</option>
-                            <option value="H3">H3</option>
-                            <option value="H4">H4</option>
-                            <option value="H5">H5</option>
-                            <option value="OFFLOAD">Offload</option>
-                          </select>
-                        </td>`;
-        tbody.appendChild(tr);
-      });
-    }
+  renderTable();
+  updateTotals();
+}
 
-    function setCompartment(index, value) {
-      cargoData[index].COMP = value;
-    }
+function addBaggage() {
+  const pcs = parseInt(document.getElementById("bagPCS").value) || 0;
+  const wt = parseInt(document.getElementById("bagWT").value) || 0;
+  if (pcs <= 0 || wt <= 0) return;
 
-    function updateTotals() {
-      const totalPCS = cargoData.reduce((sum, r) => sum + r.PCS, 0);
-      const totalWT = cargoData.reduce((sum, r) => sum + r.WT, 0);
-      document.getElementById("totalPCS").textContent = totalPCS;
-      document.getElementById("totalWT").textContent = totalWT;
-    }
+  const avg = (wt / pcs).toFixed(2);
+  document.getElementById("avgBag").textContent = `Average baggage weight: ${avg} kg per piece`;
+
+  cargoData.push({
+    UNIT: "BAGGAGE",
+    TYPE: "B",
+    PCS: pcs,
+    WT: wt,
+    CTUR: "",
+    PR: "",
+    HANDLING: "",
+    REMARKS: "",
+    COMP: "H1"
+  });
+
+  renderTable();
+  updateTotals();
+}
+
+function renderTable() {
+  const tbody = document.querySelector("#cargoTable tbody");
+  tbody.innerHTML = "";
+
+  cargoData.forEach((row, idx) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td data-label="UNIT">${row.UNIT}</td>
+      <td data-label="TYPE">${row.TYPE}</td>
+      <td data-label="PCS">${row.PCS}</td>
+      <td data-label="WT/KG">${row.WT}</td>
+      <td data-label="CTUR">${row.CTUR}</td>
+      <td data-label="PR">${row.PR}</td>
+      <td data-label="HANDLING">${row.HANDLING}</td>
+      <td data-label="REMARKS">${row.REMARKS}</td>
+      <td data-label="Compartment">
+        <select onchange="setCompartment(${idx}, this.value)">
+          <option value="H1">H1</option>
+          <option value="H2">H2</option>
+          <option value="H3">H3</option>
+          <option value="H4">H4</option>
+          <option value="H5">H5</option>
+          <option value="OFFLOAD">Offload</option>
+        </select>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function setCompartment(index, value) {
+  cargoData[index].COMP = value;
+}
+
+function updateTotals() {
+  const totalPCS = cargoData.reduce((sum, r) => sum + r.PCS, 0);
+  const totalWT = cargoData.reduce((sum, r) => sum + r.WT, 0);
+  document.getElementById("totalPCS").textContent = totalPCS;
+  document.getElementById("totalWT").textContent = totalWT;
+}
+
+function generateReport() {
+  const reportDiv = document.getElementById("report");
+  let compartments = {
+    H1:{pcs:0,wt:0,types:new Set()}, H2:{pcs:0,wt:0,types:new Set()},
+    H3:{pcs:0,wt:0,types:new Set()}, H4:{pcs:0,wt:0,types:new Set()},
+    H5:{pcs:0,wt:0,types:new Set()}
+  };
+  let offload = {pcs:0, wt:0};
+
+  cargoData.for
 
     function generateReport() {
       const reportDiv = document.getElementById("report");
